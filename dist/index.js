@@ -377,39 +377,75 @@ class FarmersDogClient {
         customer {
           pets {
             name
-            plan {
-              dailyFreshCalories
-            }
-            freshRecipes {
-              id
+            foodRecipes {
               name
-              displayName
-              enabled
+            }
+            plan {
+              id
+              dailyFreshCalories
+              freshFoodRatio
+            }
+          }
+          upcomingTransitionAndRegularOrders {
+            upcomingRegularOrder {
+              avgDaysOfFood
+              dailyPrice
             }
           }
         }
       }
     `);
     }
-    async updateRecipe(petId, recipeId, enabled) {
+    async quoteRecipeChange(petId, recipes) {
         return this.queryCustomer(`
-      mutation UpdateRecipe($input: UpdateRecipeInput!) {
-        updateRecipe(input: $input) {
-          pet {
-            name
-            freshRecipes {
-              id
+      query FetchChangeFreshRecipesQuote($input: ChangeFreshRecipesPlanQuoteInput!) {
+        customer {
+          changeFreshRecipesPlanQuote(input: $input) {
+            dailyConsumptionPrice {
+              original
+              updated
+            }
+            selectedRecipes {
+              displayName
               name
-              enabled
+            }
+            subscriptionFrequency {
+              original
+              updated
+            }
+          }
+        }
+      }
+    `, { input: { petId, recipes } });
+    }
+    async updateRecipes(planId, recipes) {
+        return this.queryCustomer(`
+      mutation UpdateFoodPlansRecipes($input: UpdateFoodPlansRecipesInput!) {
+        updateFoodPlansRecipes(input: $input) {
+          customer {
+            freshSubscription {
+              id
+              status
+              lastQuotedPrice {
+                regularOrderTotalConsumptionPrice
+              }
+            }
+            pets {
+              foodRecipes {
+                name
+              }
+              plan {
+                id
+                dailyFreshCalories
+              }
             }
           }
         }
       }
     `, {
             input: {
-                petId,
-                recipeId,
-                enabled
+                foodPlans: [{ id: planId, selectedRecipes: recipes }],
+                freeFormFeedback: ""
             }
         });
     }
@@ -596,7 +632,7 @@ async function main() {
         }
     });
     // Tool: Get recipes
-    server.tool("get_recipes", "Get available recipes for your pets and which ones are enabled", {}, async () => {
+    server.tool("get_recipes", "Get current recipes for your pets and pricing info. Available recipes: TURKEY, BEEF, CHICKEN, PORK, CHICKEN_OATS_COLLARDS (Chicken & Grain)", {}, async () => {
         try {
             const data = await client.getRecipes();
             return {
@@ -610,14 +646,36 @@ async function main() {
             };
         }
     });
-    // Tool: Update recipe
-    server.tool("update_recipe", "Enable or disable a recipe for a pet", {
+    // Tool: Quote recipe change
+    server.tool("quote_recipe_change", "Get a price quote for changing recipes before confirming. Returns price difference and new frequency.", {
         petId: z.number().describe("Pet ID (get from get_pets)"),
-        recipeId: z.number().describe("Recipe ID (get from get_recipes)"),
-        enabled: z.boolean().describe("Whether to enable (true) or disable (false) the recipe"),
-    }, async ({ petId, recipeId, enabled }) => {
+        recipes: z.array(z.object({
+            name: z.string().describe("Recipe name: TURKEY, BEEF, CHICKEN, PORK, or CHICKEN_OATS_COLLARDS"),
+            displayName: z.string().describe("Display name: Turkey, Beef, Chicken, Pork, or Chicken & Grain")
+        })).describe("Array of recipes to set (1-3 recipes)")
+    }, async ({ petId, recipes }) => {
         try {
-            const data = await client.updateRecipe(petId, recipeId, enabled);
+            const data = await client.quoteRecipeChange(petId, recipes);
+            return {
+                content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+            };
+        }
+        catch (error) {
+            return {
+                content: [{ type: "text", text: `Error: ${error.message}` }],
+                isError: true,
+            };
+        }
+    });
+    // Tool: Update recipes
+    server.tool("update_recipes", "Confirm recipe changes for a pet. Use quote_recipe_change first to see pricing impact.", {
+        planId: z.number().describe("Plan ID (get from get_recipes -> plan.id)"),
+        recipes: z.array(z.object({
+            name: z.string().describe("Recipe name: TURKEY, BEEF, CHICKEN, PORK, or CHICKEN_OATS_COLLARDS")
+        })).describe("Array of recipes to set (1-3 recipes)")
+    }, async ({ planId, recipes }) => {
+        try {
+            const data = await client.updateRecipes(planId, recipes);
             return {
                 content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
             };
