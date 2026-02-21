@@ -247,7 +247,7 @@ class FarmersDogClient {
     async getOrders() {
         return this.queryCustomer(`
       query {
-        customerOrders {
+        customerOrders(futureOrderCount: 2) {
           current {
             id
             petNames
