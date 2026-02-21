@@ -1,0 +1,26 @@
+{
+  "name": "farmersdog-mcp-server",
+  "version": "1.1.0",
+  "description": "MCP server for The Farmer's Dog pet food subscription",
+  "main": "dist/index.js",
+  "type": "module",
+  "bin": {
+    "farmersdog-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "axios": "^1.6.0",
+    "playwright": "^1.40.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": ["mcp", "farmersdog", "pet-food", "subscription"],
+  "license": "MIT"
+}
