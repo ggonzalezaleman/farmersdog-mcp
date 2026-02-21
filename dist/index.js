@@ -428,6 +428,62 @@ class FarmersDogClient {
       }
     `, { input: { petId, recipes } });
     }
+    async getOrderSizeQuotes() {
+        return this.queryCustomer(`
+      query GetChangeOrderSizeQuotes {
+        customer {
+          id
+          changeFreshOrderSizeQuotes {
+            current {
+              averageDailyConsumptionPrice
+              dailyConsumptionPrice
+              frequency
+              regularOrderTotalConsumptionPrice
+              yearlyConsumptionPrice
+            }
+            max {
+              averageDailyConsumptionPrice
+              dailyConsumptionPrice
+              frequency
+              regularOrderTotalConsumptionPrice
+              yearlyConsumptionPrice
+            }
+            min {
+              averageDailyConsumptionPrice
+              dailyConsumptionPrice
+              frequency
+              regularOrderTotalConsumptionPrice
+              yearlyConsumptionPrice
+            }
+          }
+          freshSubscription {
+            id
+            nextDate
+          }
+        }
+      }
+    `);
+    }
+    async updateOrderSize(orderSize) {
+        return this.queryCustomer(`
+      mutation UpdateOrderSize($input: ChangeFreshOrderSizeInput!) {
+        changeFreshOrderSize(input: $input) {
+          customer {
+            id
+            freshSubscription {
+              nextDate
+            }
+            nextOrderToBeDelivered {
+              deliveryWindow {
+                earliestDesiredArrivalDate
+                latestDesiredArrivalDate
+              }
+            }
+          }
+        }
+      }
+    `, { input: { orderSize } });
+    }
     async updateRecipes(planId, recipes) {
         return this.queryCustomer(`
       mutation UpdateFoodPlansRecipes($input: UpdateFoodPlansRecipesInput!) {
@@ -701,6 +757,38 @@ async function main() {
     }, async ({ planId, recipes }) => {
         try {
             const data = await client.updateRecipes(planId, recipes);
+            return {
+                content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+            };
+        }
+        catch (error) {
+            return {
+                content: [{ type: "text", text: `Error: ${error.message}` }],
+                isError: true,
+            };
+        }
+    });
+    // Tool: Get order size quotes
+    server.tool("get_order_size_quotes", "Get available order sizes with pricing comparison (current, min, max options)", {}, async () => {
+        try {
+            const data = await client.getOrderSizeQuotes();
+            return {
+                content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+            };
+        }
+        catch (error) {
+            return {
+                content: [{ type: "text", text: `Error: ${error.message}` }],
+                isError: true,
+            };
+        }
+    });
+    // Tool: Update order size
+    server.tool("update_order_size", "Change your order size/frequency. Common values: 28 (4 weeks) or 56 (8 weeks). Larger orders = lower daily price.", {
+        orderSize: z.number().describe("Order size in days (e.g., 28 for 4 weeks, 56 for 8 weeks)")
+    }, async ({ orderSize }) => {
+        try {
+            const data = await client.updateOrderSize(orderSize);
             return {
                 content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
             };
