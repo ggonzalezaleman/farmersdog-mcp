@@ -244,6 +244,60 @@ class FarmersDogClient {
       }
     `);
     }
+    async getOrders() {
+        return this.queryCustomer(`
+      query {
+        customerOrders {
+          current {
+            id
+            petNames
+            pricing {
+              cashTotal
+              pricePerDay
+              pricePerWeek
+              total
+            }
+            scheduling {
+              earliestDesiredArrivalDate
+              latestDesiredArrivalDate
+              isReschedulable
+              rescheduleCutOffDate
+            }
+            shipping {
+              status
+              arrivalDate
+              trackingURL
+              address {
+                addressLine1
+                addressLine2
+                city
+                stateAbbreviation
+                zip
+              }
+            }
+            packing {
+              numberOfFoodPacks
+            }
+          }
+          past {
+            id
+            petNames
+            pricing {
+              cashTotal
+              pricePerDay
+            }
+            shipping {
+              status
+              arrivalDate
+            }
+            packing {
+              numberOfFoodPacks
+            }
+          }
+        }
+      }
+    `);
+    }
     async rescheduleOrder(subscriptionId, newDate) {
         return this.query(`
       mutation RescheduleNextOrder($input: RescheduleNextOrderInput!) {
@@ -346,6 +400,21 @@ async function main() {
     server.tool("get_profile", "Get your Farmer's Dog customer profile (name, email)", {}, async () => {
         try {
             const data = await client.getProfile();
+            return {
+                content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+            };
+        }
+        catch (error) {
+            return {
+                content: [{ type: "text", text: `Error: ${error.message}` }],
+                isError: true,
+            };
+        }
+    });
+    // Tool: Get orders with pricing
+    server.tool("get_orders", "Get current and past orders with full pricing, shipping status, and delivery details", {}, async () => {
+        try {
+            const data = await client.getOrders();
             return {
                 content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
             };
