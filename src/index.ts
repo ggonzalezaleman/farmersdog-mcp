@@ -378,6 +378,93 @@ class FarmersDogClient {
       }
     });
   }
+
+  async updatePet(petId: number, input: Record<string, unknown>): Promise<unknown> {
+    return this.query(`
+      mutation EditPetSubmit($petId: Int!, $input: UpdatePetInput!) {
+        updateMyPet(petId: $petId, input: $input) {
+          id
+          pets {
+            id
+            name
+            birthday
+            weight
+            targetWeight
+            activity
+            condition
+          }
+        }
+      }
+    `, { petId, input });
+  }
+
+  async getPetDetails(): Promise<unknown> {
+    return this.query(`
+      query {
+        me {
+          pets {
+            id
+            name
+            weight
+            size
+            breeds { name }
+            targetWeight
+            gender
+            birthday
+            activity
+            condition
+            neutered
+            suggestedCalories
+            requiredCalories
+          }
+        }
+      }
+    `);
+  }
+
+  async getRecipes(): Promise<unknown> {
+    return this.queryCustomer(`
+      query {
+        customer {
+          pets {
+            name
+            plan {
+              dailyFreshCalories
+            }
+            freshRecipes {
+              id
+              name
+              displayName
+              enabled
+            }
+          }
+        }
+      }
+    `);
+  }
+
+  async updateRecipe(petId: number, recipeId: number, enabled: boolean): Promise<unknown> {
+    return this.queryCustomer(`
+      mutation UpdateRecipe($input: UpdateRecipeInput!) {
+        updateRecipe(input: $input) {
+          pet {
+            name
+            freshRecipes {
+              id
+              name
+              enabled
+            }
+          }
+        }
+      }
+    `, {
+      input: {
+        petId,
+        recipeId,
+        enabled
+      }
+    });
+  }
 }
 
 async function main() {
@@ -541,6 +628,107 @@ async function main() {
     async ({ subscriptionId, newDate }) => {
       try {
         const data = await client.rescheduleOrder(subscriptionId, newDate);
+        return {
+          content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: Update pet info
+  server.tool(
+    "update_pet",
+    "Update pet information (birthday, weight, activity level, etc.)",
+    {
+      petId: z.number().describe("Pet ID (get from get_pets)"),
+      birthday: z.string().optional().describe("Birthday in YYYY-MM-DD format"),
+      weight: z.number().optional().describe("Weight in grams"),
+      targetWeight: z.number().optional().describe("Target weight in grams"),
+      activity: z.number().optional().describe("Activity level (1-5)"),
+      condition: z.number().optional().describe("Body condition (1-9)"),
+    },
+    async ({ petId, birthday, weight, targetWeight, activity, condition }) => {
+      try {
+        const input: Record<string, unknown> = {};
+        if (birthday) {
+          input.birthday = birthday;
+          input.birthdayAccuracy = "date";
+        }
+        if (weight !== undefined) input.weight = weight;
+        if (targetWeight !== undefined) input.targetWeight = targetWeight;
+        if (activity !== undefined) input.activity = activity;
+        if (condition !== undefined) input.condition = condition;
+        
+        const data = await client.updatePet(petId, input);
+        return {
+          content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: Get pet details
+  server.tool(
+    "get_pet_details",
+    "Get detailed information about your pets including weight, activity level, and suggested calories",
+    {},
+    async () => {
+      try {
+        const data = await client.getPetDetails();
+        return {
+          content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: Get recipes
+  server.tool(
+    "get_recipes",
+    "Get available recipes for your pets and which ones are enabled",
+    {},
+    async () => {
+      try {
+        const data = await client.getRecipes();
+        return {
+          content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Error: ${(error as Error).message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: Update recipe
+  server.tool(
+    "update_recipe",
+    "Enable or disable a recipe for a pet",
+    {
+      petId: z.number().describe("Pet ID (get from get_pets)"),
+      recipeId: z.number().describe("Recipe ID (get from get_recipes)"),
+      enabled: z.boolean().describe("Whether to enable (true) or disable (false) the recipe"),
+    },
+    async ({ petId, recipeId, enabled }) => {
+      try {
+        const data = await client.updateRecipe(petId, recipeId, enabled);
         return {
           content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
         };
