@@ -326,6 +326,24 @@ class FarmersDogClient {
               numberOfFoodPacks
             }
           }
+          future {
+            id
+            petNames
+            pricing {
+              cashTotal
+              pricePerDay
+              pricePerWeek
+              total
+            }
+            scheduling {
+              earliestDesiredArrivalDate
+              latestDesiredArrivalDate
+              isReschedulable
+            }
+            packing {
+              numberOfFoodPacks
+            }
+          }
           past {
             id
             petNames
