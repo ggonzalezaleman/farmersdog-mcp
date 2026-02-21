@@ -371,6 +371,16 @@ class FarmersDogClient {
       }
     `);
     }
+    async listAvailableRecipes() {
+        return this.query(`
+      query {
+        recipes {
+          name
+          displayName
+        }
+      }
+    `);
+    }
     async getRecipes() {
         return this.queryCustomer(`
       query {
@@ -620,6 +630,21 @@ async function main() {
     server.tool("get_pet_details", "Get detailed information about your pets including weight, activity level, and suggested calories", {}, async () => {
         try {
             const data = await client.getPetDetails();
+            return {
+                content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+            };
+        }
+        catch (error) {
+            return {
+                content: [{ type: "text", text: `Error: ${error.message}` }],
+                isError: true,
+            };
+        }
+    });
+    // Tool: List all available recipes
+    server.tool("list_recipes", "List all available Farmer's Dog recipes that can be selected", {}, async () => {
+        try {
+            const data = await client.listAvailableRecipes();
             return {
                 content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
             };
