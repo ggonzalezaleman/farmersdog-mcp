@@ -139,29 +139,39 @@ class FarmersDogClient {
     await page.goto("https://www.thefarmersdog.com/login", { timeout: 60000 });
     await page.waitForTimeout(5000);
 
-    // Fill password first (survives Turnstile re-renders)
-    const formSel = page.getByTestId("loginFormWebsite");
-    await formSel.locator("input[type=password]").click();
-    await page.keyboard.type(this.password, { delay: 40 });
-
-    // Wait for Turnstile (natural or 2Captcha)
+    // Solve Turnstile FIRST — it clears form fields on completion
     const turnstileOk = await this.solveTurnstile(page);
     if (!turnstileOk) return null;
 
-    // Fill email AFTER Turnstile (it clears the email field on completion)
+    // Fill BOTH fields AFTER Turnstile
+    const formSel = page.getByTestId("loginFormWebsite");
     await formSel.getByRole("textbox", { name: "Email" }).click();
     await page.keyboard.type(this.email, { delay: 30 });
+    await formSel.locator("input[type=password]").click();
+    await page.keyboard.type(this.password, { delay: 30 });
     await page.waitForTimeout(300);
 
-    // Verify fields
+    // Verify and retry if fields got cleared
     const fields = await page.evaluate(() => {
-      const form = document.querySelector("[data-testid=loginFormWebsite]") || document;
-      const e = form.querySelector("input[type=email]") as HTMLInputElement;
-      const p = form.querySelector("input[type=password]") as HTMLInputElement;
+      const form = document.querySelector("[data-testid=loginFormWebsite]");
+      const e = form?.querySelector('input[name="Email"]') as HTMLInputElement;
+      const p = form?.querySelector("input[type=password]") as HTMLInputElement;
       return { email: e?.value || "", passLen: p?.value?.length || 0 };
     });
     log(`Fields: email=${fields.email ? "OK" : "EMPTY"} pass=${fields.passLen}chars`);
-    if (!fields.email || fields.passLen < 5) return null;
+
+    if (!fields.email) {
+      log("Email cleared, refilling...");
+      await formSel.getByRole("textbox", { name: "Email" }).click();
+      await page.keyboard.type(this.email, { delay: 20 });
+      await page.waitForTimeout(300);
+    }
+    if (fields.passLen < 5) {
+      log("Password cleared, refilling...");
+      await formSel.locator("input[type=password]").click();
+      await page.keyboard.type(this.password, { delay: 20 });
+      await page.waitForTimeout(300);
+    }
 
     // Submit
     await page.evaluate(() => {
@@ -192,7 +202,7 @@ class FarmersDogClient {
           const iframe = document.querySelector('iframe[src*="challenges.cloudflare.com"]');
           if (iframe) { const m = (iframe.getAttribute("src") || "").match(/[?&]k=([^&]+)/); if (m) return m[1]; }
           return null;
-        }) || "0x4AAAAAAA1dwgJRIjCpfp_v";
+        }) || "0x4AAAAAAAWwgggf84d3DU0J";
 
         const result = await this.captchaSolver.cloudflareTurnstile({ pageurl: page.url(), sitekey });
         log("2Captcha solved, injecting...");
