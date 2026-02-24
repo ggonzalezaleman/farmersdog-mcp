@@ -1,121 +1,58 @@
-# The Farmer's Dog MCP Server
+# farmersdog-mcp
 
-MCP server for managing your Farmer's Dog pet food subscription.
+MCP server for The Farmer's Dog pet food subscription management.
 
-## Features (16 tools)
+## Architecture
 
-### Account & Profile
-- **get_account** - Account overview (pets, subscriptions, orders)
-- **get_profile** - Customer profile (name, email)
-- **get_pets** - List of pets
-- **get_pet_details** - Detailed pet info (weight, calories, activity)
-- **update_pet** - Update pet info (birthday, weight, activity, etc.)
+Farmer's Dog has aggressive Cloudflare protection that blocks all non-browser API calls. This MCP uses a two-layer approach:
 
-### Deliveries & Orders
-- **next_delivery** - Next scheduled delivery
-- **delivery_history** - Past deliveries
-- **get_orders** - Current and past orders with full pricing
-- **available_dates** - Available dates for rescheduling
-- **reschedule_delivery** - Change delivery date
+1. **Login**: Browserbase (remote browser with residential IPs) + 2Captcha for Turnstile solving (~11s)
+2. **API calls**: Route interception — hijacks the React app's own GraphQL requests via Playwright `route.continue()` with body swap. The browser's own request carries all Cloudflare cookies/clearance.
 
-### Recipes
-- **list_recipes** - All available recipes catalog
-- **get_recipes** - Current recipes for your pet
-- **quote_recipe_change** - Get price quote before changing recipes
-- **update_recipes** - Confirm recipe changes
-
-### Order Size
-- **get_order_size_quotes** - Compare order size options (28 vs 56 days)
-- **update_order_size** - Change order frequency
+### Key learnings
+- Turnstile sitekey: `0x4AAAAAAAWwgggf84d3DU0J` (not in HTML, extracted from challenge URL)
+- Turnstile clears ALL form fields on completion → fill email + password AFTER solving
+- `route.fetch()` gets blocked by Cloudflare; `route.continue()` with body swap works because it reuses the browser's existing connection
+- Session persistence via `~/.farmersdog-session.json` avoids 35s+ cold starts
 
 ## Setup
 
-### Option 1: Automatic Login with BrowserBase (Recommended)
-
-BrowserBase provides free browser sessions that bypass Cloudflare Turnstile.
-
-1. **Create a free BrowserBase account** at [browserbase.com](https://browserbase.com)
-2. **Get your credentials** from the dashboard (API Key + Project ID)
-3. **Configure environment variables:**
-
 ```bash
-export FARMERSDOG_EMAIL="your@email.com"
-export FARMERSDOG_PASSWORD="yourpassword"
-export BROWSERBASE_API_KEY="bb_live_xxx"
-export BROWSERBASE_PROJECT_ID="xxx-xxx-xxx"
+npm install
+npm run build
 ```
 
-### Option 2: Manual Token
+### Environment variables
 
-```bash
-export FARMERSDOG_TOKEN="eyJhbG..."  # Get from browser DevTools
-```
+| Variable | Required | Description |
+|---|---|---|
+| `FARMERSDOG_EMAIL` | Yes | Account email |
+| `FARMERSDOG_PASSWORD` | Yes | Account password |
+| `BROWSERBASE_API_KEY` | Yes | Browserbase API key |
+| `BROWSERBASE_PROJECT_ID` | Yes | Browserbase project ID |
+| `TWOCAPTCHA_API_KEY` | Recommended | 2Captcha API key (~$0.003/solve) |
 
-⚠️ Tokens expire every ~15 hours.
+Without 2Captcha, falls back to natural Turnstile waiting (~50% success rate).
 
-## Installation
+## Tools (17)
 
-```bash
-npm install -g farmersdog-mcp-server
-```
+### Read-only
+- `farmersdog_get_account` — Account overview
+- `farmersdog_next_delivery` — Next delivery date
+- `farmersdog_delivery_history` — Past deliveries
+- `farmersdog_get_pets` — Registered pets
+- `farmersdog_get_pet_details` — Detailed pet info
+- `farmersdog_available_dates` — Reschedule date options
+- `farmersdog_get_profile` — Customer profile
+- `farmersdog_get_orders` — Orders with pricing/shipping
+- `farmersdog_list_recipes` — Available recipes
+- `farmersdog_get_recipes` — Current pet recipes
+- `farmersdog_quote_recipe_change` — Price quote for recipe change
+- `farmersdog_get_order_size_quotes` — Order size pricing
 
-Or run directly:
-
-```bash
-npx farmersdog-mcp-server
-```
-
-## MCP Configuration
-
-Add to your MCP client config:
-
-```json
-{
-  "farmersdog": {
-    "command": "npx",
-    "args": ["farmersdog-mcp-server"],
-    "env": {
-      "FARMERSDOG_EMAIL": "your@email.com",
-      "FARMERSDOG_PASSWORD": "yourpassword",
-      "BROWSERBASE_API_KEY": "bb_live_xxx",
-      "BROWSERBASE_PROJECT_ID": "xxx-xxx-xxx"
-    }
-  }
-}
-```
-
-## How It Works
-
-1. MCP checks for valid cached JWT token
-2. If expired, uses BrowserBase to open a real browser
-3. Fills login form, Turnstile passes (residential IP)
-4. Captures JWT, caches for ~15h
-5. Auto-refreshes when needed
-
-## Available Recipes
-
-| Code | Name |
-|------|------|
-| TURKEY | Turkey |
-| BEEF | Beef |
-| PORK | Pork |
-| CHICKEN_AND_GREENS | Chicken |
-| CHICKEN_OATS_COLLARDS | Chicken & Grain |
-| PORK_GRAIN | Pork & Grain |
-| BEEF_GRAIN | Beef & Grain |
-| LOW_FAT_CHICKEN | Low Fat Chicken |
-
-## Order Sizes
-
-- **28 days** - Smaller, more frequent orders (higher $/day)
-- **56 days** - Larger orders, better value (lower $/day, saves ~$193/year)
-
-## Cost
-
-- **BrowserBase Free Tier:** ~100 sessions/month
-- **Usage:** ~2 logins/day = ~60 sessions/month
-- **Result:** Completely free for normal use
-
-## License
-
-MIT
+### Mutations
+- `farmersdog_reschedule_delivery` — Reschedule via API
+- `farmersdog_reschedule_delivery_ui` — Reschedule via UI (most reliable)
+- `farmersdog_update_pet` — Update pet info
+- `farmersdog_update_recipes` — Change recipes
+- `farmersdog_update_order_size` — Change order size
