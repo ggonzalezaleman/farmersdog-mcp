@@ -54,6 +54,7 @@ async function handleRoute(route) {
         const pq = pendingQuery;
         pendingQuery = null;
         log(`Intercepting request to ${url.substring(0, 60)}...`);
+        pq.resolve(null); // signal that swap happened
         // Swap the body but keep everything else (cookies, headers, CF clearance)
         await route.continue({
             url: pq.targetUrl,
@@ -306,11 +307,20 @@ class FarmersDogClient {
         return new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
                 pendingQuery = null;
-                responseHandler = null;
                 reject(new Error("Query timeout (30s) — app didn't make an interceptable API call."));
             }, 30000);
-            // Listen for the response to our swapped request
-            let responseHandler = async (r) => {
+            let swapped = false;
+            // Queue our swap — the route handler will set swapped=true when it fires
+            const origResolve = resolve;
+            pendingQuery = {
+                targetUrl, query: queryStr, variables,
+                resolve: () => { swapped = true; },
+                reject: () => { }
+            };
+            // Listen for the response ONLY after our swap happened
+            const responseListenerRef = async (r) => {
+                if (!swapped)
+                    return; // ignore responses before our swap
                 if (!r.url().includes("core-api-customer"))
                     return;
                 try {
@@ -318,18 +328,13 @@ class FarmersDogClient {
                     const json = JSON.parse(text);
                     if (json.data) {
                         clearTimeout(timeout);
-                        responseHandler = null;
                         page.removeListener("response", responseListenerRef);
-                        resolve(json.data);
+                        origResolve(json.data);
                     }
                 }
                 catch { }
             };
-            const responseListenerRef = (r) => { if (responseHandler)
-                responseHandler(r); };
             page.on("response", responseListenerRef);
-            // Queue our swap
-            pendingQuery = { targetUrl, query: queryStr, variables, resolve: () => { }, reject: () => { } };
             // Trigger the app to make API calls
             page.goto("https://www.thefarmersdog.com/app/home", { waitUntil: "commit" }).catch(() => { });
         });
