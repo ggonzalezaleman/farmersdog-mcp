@@ -55,7 +55,7 @@ async function handleRoute(route) {
         pendingQuery = null;
         log(`Intercepting request to ${url.substring(0, 60)}...`);
         pq.resolve(null); // signal that swap happened
-        // Swap the body but keep everything else (cookies, headers, CF clearance)
+        // Swap the request body
         await route.continue({
             url: pq.targetUrl,
             postData: JSON.stringify({ query: pq.query, variables: pq.variables }),
@@ -220,7 +220,7 @@ class FarmersDogClient {
                             return m[1];
                     }
                     return null;
-                }) || "0x4AAAAAAAWwgggf84d3DU0J";
+                }) || process.env.TURNSTILE_SITEKEY || "";
                 const result = await this.captchaSolver.cloudflareTurnstile({ pageurl: page.url(), sitekey });
                 log("2Captcha solved, injecting...");
                 await page.evaluate((token) => {

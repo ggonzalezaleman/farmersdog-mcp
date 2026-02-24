@@ -38,9 +38,6 @@ function clearSession() {
 }
 
 // ── Request interception ──
-// Instead of making our own fetch (which Cloudflare blocks), we hijack
-// the app's existing GraphQL requests by swapping the POST body via route.continue().
-// The browser's own request carries all cookies/CF clearance, so it passes.
 
 interface PendingQuery {
   targetUrl: string;  // which endpoint to match (graphql or customer-graphql)
@@ -59,7 +56,7 @@ async function handleRoute(route: Route) {
     pendingQuery = null;
     log(`Intercepting request to ${url.substring(0, 60)}...`);
     pq.resolve(null); // signal that swap happened
-    // Swap the body but keep everything else (cookies, headers, CF clearance)
+    // Swap the request body
     await route.continue({
       url: pq.targetUrl,
       postData: JSON.stringify({ query: pq.query, variables: pq.variables }),
@@ -203,7 +200,7 @@ class FarmersDogClient {
           const iframe = document.querySelector('iframe[src*="challenges.cloudflare.com"]');
           if (iframe) { const m = (iframe.getAttribute("src") || "").match(/[?&]k=([^&]+)/); if (m) return m[1]; }
           return null;
-        }) || "0x4AAAAAAAWwgggf84d3DU0J";
+        }) || process.env.TURNSTILE_SITEKEY || "";
 
         const result = await this.captchaSolver.cloudflareTurnstile({ pageurl: page.url(), sitekey });
         log("2Captcha solved, injecting...");
